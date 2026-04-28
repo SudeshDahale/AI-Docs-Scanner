@@ -1,10 +1,18 @@
 from pypdf import PdfReader
+import io
 
 def extract_text(file):
-    reader = PdfReader(file)
-    text = ""
+    try:
+        file_bytes = file.read()
+        pdf_stream = io.BytesIO(file_bytes)
 
-    for page in reader.pages:
-        text += page.extract_text() or ""
+        reader = PdfReader(pdf_stream)
 
-    return text
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+
+        return text
+
+    except Exception as e:
+        return f"Error reading PDF: {str(e)}"

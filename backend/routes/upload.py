@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File
-from backend.services.pdf import extract_text
-from backend.services.llm import summarize
+from services.pdf import extract_text
+from services.llm import summarize
 
 router = APIRouter()
 
