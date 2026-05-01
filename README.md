@@ -1,5 +1,6 @@
-# DocuMind-AI
-A full-stack AI-powered application for intelligent PDF question-answering using RAG (Retrieval Augmented Generation) technology.
+# DocuMind-AI: Full-Stack RAG for Intelligent PDF QA
+
+![Cover Image](./assets/cover.png) 
 
 ## 🚀 Quick Start
 
@@ -53,6 +54,12 @@ pdf-rag-app/
     ├── package.json
     └── vite.config.js
 ```
+
+## 🏗️ System Architecture (RAG Pipeline)
+
+> This system follows a Retrieval-Augmented Generation (RAG) architecture to ensure responses are grounded in document context and reduce hallucinations.
+![Mermaid Diagram](./assets/mermaid-diagram.png)
+
 
 ## ✨ Features
 
