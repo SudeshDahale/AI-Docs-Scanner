@@ -87,6 +87,7 @@ def search(index, query, chunks, k=3):
         np.array([query_embedding]).astype("float32"),
         k
     )
+    
 
     results = []
     for i in I[0]:
@@ -116,4 +117,24 @@ def answer_question(query, context_chunks):
         ]
     )
 
-    return response.choices[0].message.content
+    return response.choices[0].message.content   
+
+
+# -----------------------------
+# 8. MULTI-DOC SEARCH
+# -----------------------------
+def search_multiple(doc_ids, query, k=3):
+    """Search across multiple documents and return top results."""
+    all_chunks = []
+
+    for doc_id in doc_ids:
+        index = load_vector_store(doc_id)
+        chunks = load_chunks(doc_id)
+
+        if index is None or chunks is None:
+            continue
+
+        results = search(index, query, chunks, k=k)
+        all_chunks.extend(results)
+
+    return all_chunks

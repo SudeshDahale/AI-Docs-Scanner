@@ -1,34 +1,31 @@
 from fastapi import APIRouter, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from services.pdf import extract_text
 from services.rag import (
     chunk_text,
     create_vector_store,
-    search,
+    search_multiple,
     answer_question,
-    load_vector_store,
     load_chunks
 )
 import uuid
 import json
+import time
 
 router = APIRouter()
 
 
 # -------------------------
-# UPLOAD PDF
+# UPLOAD PDF (unchanged)
 # -------------------------
 @router.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
     text = extract_text(file.file)
-
     chunks = chunk_text(text)
-
     doc_id = str(uuid.uuid4())
 
-    # Create FAISS index + save to disk
     index, chunks = create_vector_store(chunks, doc_id)
 
-    # Save chunks to disk (IMPORTANT FIX)
     with open(f"storage/chunks/{doc_id}.json", "w") as f:
         json.dump(chunks, f)
 
@@ -39,24 +36,19 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 
 # -------------------------
-# ASK QUESTION
+# ASK QUESTION (now multi-doc)
 # -------------------------
-from fastapi.responses import StreamingResponse
-import time
-import json
-
 @router.post("/ask")
-async def ask_question(doc_id: str = Form(...), question: str = Form(...)):
+async def ask_question(doc_ids: str = Form(...), question: str = Form(...)):
+    # doc_ids is a comma-separated string: "id1,id2,id3"
+    id_list = [d.strip() for d in doc_ids.split(",") if d.strip()]
 
-    index = load_vector_store(doc_id)
-    chunks = load_chunks(doc_id)
-
-    relevant_chunks = search(index, question, chunks)
+    relevant_chunks = search_multiple(id_list, question)
     answer = answer_question(question, relevant_chunks)
 
     def stream():
         for word in answer.split():
             yield word + " "
-            time.sleep(0.03)  # simulate typing effect
+            time.sleep(0.03)
 
     return StreamingResponse(stream(), media_type="text/plain")
