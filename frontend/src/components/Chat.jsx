@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Send, FileText, RotateCcw, Sparkles, User } from 'lucide-react'
 import './Chat.css'
 
-function Chat({ docId, fileName, onReset }) {
+function Chat({ docIds, fileNames, onReset }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +33,7 @@ function Chat({ docId, fileName, onReset }) {
 
     try {
       const formData = new FormData()
-      formData.append('doc_id', docId)
+      formData.append('doc_ids', docIds)
       formData.append('question', input)
 
       const response = await fetch('http://localhost:8000/ask', {
@@ -83,7 +83,7 @@ function Chat({ docId, fileName, onReset }) {
         <div className="header-content">
           <div className="doc-info">
             <FileText size={20} />
-            <span className="doc-name">{fileName}</span>
+            <span className="doc-name">{Array.isArray(fileNames) ? fileNames.join(', ') : fileNames}</span>
           </div>
           <button className="reset-btn" onClick={onReset}>
             <RotateCcw size={18} />

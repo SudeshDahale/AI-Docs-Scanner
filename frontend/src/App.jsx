@@ -7,25 +7,29 @@ import Background from './components/Background'
 import './App.css'
 
 function App() {
-  const [docId, setDocId] = useState(null)
-  const [fileName, setFileName] = useState('')
+  // Now store a list of { docId, fileName } instead of a single one
+  const [docs, setDocs] = useState([])
+  const [chatStarted, setChatStarted] = useState(false)
 
   const handleUploadSuccess = (id, name) => {
-    setDocId(id)
-    setFileName(name)
+    setDocs(prev => [...prev, { docId: id, fileName: name }])
+  }
+
+  const handleStartChat = () => {
+    if (docs.length > 0) setChatStarted(true)
   }
 
   const handleReset = () => {
-    setDocId(null)
-    setFileName('')
+    setDocs([])
+    setChatStarted(false)
   }
 
   return (
     <div className="app">
       <Background />
-      
+
       <AnimatePresence mode="wait">
-        {!docId ? (
+        {!chatStarted ? (
           <motion.div
             key="upload-view"
             initial={{ opacity: 0 }}
@@ -34,7 +38,11 @@ function App() {
             transition={{ duration: 0.5 }}
           >
             <Hero />
-            <Upload onUploadSuccess={handleUploadSuccess} />
+            <Upload
+              onUploadSuccess={handleUploadSuccess}
+              uploadedDocs={docs}
+              onStartChat={handleStartChat}
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -44,9 +52,9 @@ function App() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <Chat 
-              docId={docId} 
-              fileName={fileName}
+            <Chat
+              docIds={docs.map(d => d.docId).join(',')}
+              fileNames={docs.map(d => d.fileName)}
               onReset={handleReset}
             />
           </motion.div>
