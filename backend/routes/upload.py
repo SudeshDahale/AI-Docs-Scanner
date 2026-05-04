@@ -37,9 +37,18 @@ def save_metadata(meta):
 # -------------------------
 # UPLOAD PDF
 # -------------------------
+ALLOWED_EXTENSIONS = {"pdf", "docx", "doc", "pptx", "ppt", "txt", "md"}
+
 @router.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
-    pages = extract_text(file.file)           # [{page, text}, ...]
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    pages = extract_text(file.file, file.filename)
     doc_id = str(uuid.uuid4())
     file_name = file.filename
 
