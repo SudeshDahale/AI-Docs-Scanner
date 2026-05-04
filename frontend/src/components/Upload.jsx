@@ -74,7 +74,7 @@ function Upload({ onUploadSuccess, uploadedDocs, onStartChat, onDelete, onRename
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf"
+          accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
           multiple
           onChange={handleFileSelect}
           style={{ display: 'none' }}
