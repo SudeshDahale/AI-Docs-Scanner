@@ -1,7 +1,26 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, FileText, RotateCcw, Sparkles, User, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { Send, FileText, RotateCcw, Sparkles, User, BookOpen, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import './Chat.css'
+
+function ExportMenu({ onExport, anchorRef }) {
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
+    }
+  }, [anchorRef])
+
+  return (
+    <div className="export-menu" style={{ top: pos.top, right: pos.right }}>
+      <button onClick={() => onExport('md')}>Markdown (.md)</button>
+      <button onClick={() => onExport('json')}>JSON (.json)</button>
+      <button onClick={() => onExport('txt')}>Plain Text (.txt)</button>
+    </div>
+  )
+}
 
 function CitationCard({ citations }) {
   const [open, setOpen] = useState(false)
@@ -45,8 +64,87 @@ function Chat({ docIds, fileNames, onReset }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
+  const exportMenuRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const exportChat = (format) => {
+    setShowExportMenu(false)
+    if (messages.length === 0) return
+
+    const docTitle = Array.isArray(fileNames) ? fileNames.join(', ') : fileNames
+    const timestamp = new Date().toLocaleString()
+    let content = ''
+    let mimeType = ''
+    let ext = ''
+
+    if (format === 'md') {
+      content = `# Chat Export — ${docTitle}\n_Exported on ${timestamp}_\n\n---\n\n`
+      messages.forEach((m) => {
+        const label = m.role === 'user' ? '**You**' : '**DocuMind**'
+        content += `${label}\n\n${m.content}\n\n`
+        if (m.citations && m.citations.length > 0) {
+          content += `> **Sources:**\n`
+          m.citations.forEach((c) => {
+            content += `> - ${c.fileName} — Page ${c.page}: "${c.snippet}"\n`
+          })
+          content += '\n'
+        }
+        content += '---\n\n'
+      })
+      mimeType = 'text/markdown'
+      ext = 'md'
+    } else if (format === 'json') {
+      const payload = {
+        document: docTitle,
+        exportedAt: timestamp,
+        messages: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          citations: m.citations || [],
+        })),
+      }
+      content = JSON.stringify(payload, null, 2)
+      mimeType = 'application/json'
+      ext = 'json'
+    } else {
+      content = `Chat Export — ${docTitle}\nExported on ${timestamp}\n\n`
+      content += '='.repeat(50) + '\n\n'
+      messages.forEach((m) => {
+        const label = m.role === 'user' ? 'You' : 'DocuMind'
+        content += `[${label}]\n${m.content}\n\n`
+        if (m.citations && m.citations.length > 0) {
+          content += `Sources:\n`
+          m.citations.forEach((c) => {
+            content += `  • ${c.fileName} — Page ${c.page}: "${c.snippet}"\n`
+          })
+          content += '\n'
+        }
+        content += '-'.repeat(50) + '\n\n'
+      })
+      mimeType = 'text/plain'
+      ext = 'txt'
+    }
+
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `documind-chat-${Date.now()}.${ext}`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -109,10 +207,23 @@ function Chat({ docIds, fileNames, onReset }) {
               {Array.isArray(fileNames) ? fileNames.join(', ') : fileNames}
             </span>
           </div>
-          <button className="reset-btn" onClick={onReset}>
-            <RotateCcw size={18} />
-            <span>New Document</span>
-          </button>
+          <div className="header-actions">
+            {messages.length > 0 && (
+              <div className="export-wrapper" ref={exportMenuRef}>
+                <button className="export-btn" onClick={() => setShowExportMenu(o => !o)}>
+                  <Download size={18} />
+                  <span>Export</span>
+                </button>
+                {showExportMenu && (
+                  <ExportMenu onExport={exportChat} anchorRef={exportMenuRef} />
+                )}
+              </div>
+            )}
+            <button className="reset-btn" onClick={onReset}>
+              <RotateCcw size={18} />
+              <span>New Document</span>
+            </button>
+          </div>
         </div>
       </motion.div>
 

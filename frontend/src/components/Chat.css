@@ -13,6 +13,8 @@
   padding: 24px 0;
   border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(10px);
+  overflow: visible;
+  z-index: 50;
 }
 
 .header-content {
@@ -355,4 +357,79 @@
 @keyframes typing-bounce {
   0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
   40%            { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ---- Export button ---- */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-wrapper {
+  position: relative;
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(0, 255, 163, 0.08);
+  border: 1px solid rgba(0, 255, 163, 0.3);
+  border-radius: 12px;
+  color: var(--accent-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Syne', sans-serif;
+}
+
+.export-btn:hover {
+  background: rgba(0, 255, 163, 0.15);
+  box-shadow: 0 0 12px rgba(0, 255, 163, 0.2);
+}
+
+.export-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: rgba(18, 18, 38, 0.97);
+  border: 1px solid rgba(0, 255, 163, 0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 100;
+  min-width: 170px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+}
+
+.export-menu button {
+  display: block;
+  width: 100%;
+  padding: 11px 18px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Syne', sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.export-menu button:hover {
+  background: rgba(0, 255, 163, 0.08);
+  color: var(--accent-primary);
+  padding-left: 22px;
+}
+
+.export-menu button + button {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.export-wrapper {
+  position: relative;
+  z-index: 100;
 }
