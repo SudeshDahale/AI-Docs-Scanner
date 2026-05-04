@@ -88,6 +88,7 @@ DocuMind-AI/
 - 📚 **Multi-document Support** — Query across multiple uploaded documents simultaneously
 - 🔖 **Source Citations** — Every answer shows the source file, page number, and snippet
 - 💬 **Export Chat History** — Download conversations as Markdown, JSON, or plain text
+- 🧠 **Conversation Memory** — Follow-up questions are aware of previous answers in the session
 - 🗂️ **Document Management** — List, rename, and delete uploaded documents
 - 🎨 **Modern UI** — Dark gradient design with smooth Framer Motion animations
 - 📱 **Fully Responsive** — Works on desktop and mobile
