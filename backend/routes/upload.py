@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from services.pdf import extract_text
 from services.rag import (
     chunk_text,
@@ -39,18 +39,18 @@ def save_metadata(meta):
 # -------------------------
 @router.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
-    text = extract_text(file.file)
-    chunks = chunk_text(text)
+    pages = extract_text(file.file)           # [{page, text}, ...]
     doc_id = str(uuid.uuid4())
+    file_name = file.filename
 
-    index, chunks = create_vector_store(chunks, doc_id)
+    chunks = chunk_text(pages, doc_id, file_name)   # [{text, page, doc_id, fileName}, ...]
+    create_vector_store(chunks, doc_id)
 
     with open(f"{CHUNK_DIR}/{doc_id}.json", "w") as f:
         json.dump(chunks, f)
 
-    # Save metadata
     meta = load_metadata()
-    meta[doc_id] = {"fileName": file.filename, "uploadedAt": time.time()}
+    meta[doc_id] = {"fileName": file_name, "uploadedAt": time.time()}
     save_metadata(meta)
 
     return {"message": "Uploaded successfully", "doc_id": doc_id}
@@ -64,7 +64,6 @@ async def list_documents():
     meta = load_metadata()
     documents = []
     for doc_id, info in meta.items():
-        # Only return docs whose files still exist
         if os.path.exists(f"{CHUNK_DIR}/{doc_id}.json"):
             documents.append({
                 "doc_id": doc_id,
@@ -105,26 +104,18 @@ async def rename_document(doc_id: str, fileName: str = Form(...)):
     meta = load_metadata()
     if doc_id not in meta:
         raise HTTPException(status_code=404, detail="Document not found")
-
     meta[doc_id]["fileName"] = fileName
     save_metadata(meta)
-
     return {"message": "Renamed successfully", "fileName": fileName}
 
 
 # -------------------------
-# ASK QUESTION
+# ASK QUESTION — returns JSON with answer + citations
 # -------------------------
 @router.post("/ask")
 async def ask_question(doc_ids: str = Form(...), question: str = Form(...)):
     id_list = [d.strip() for d in doc_ids.split(",") if d.strip()]
-
     relevant_chunks = search_multiple(id_list, question)
-    answer = answer_question(question, relevant_chunks)
-
-    def stream():
-        for word in answer.split():
-            yield word + " "
-            time.sleep(0.03)
-
-    return StreamingResponse(stream(), media_type="text/plain")
+    result = answer_question(question, relevant_chunks)
+    # result = {"answer": str, "citations": [{page, fileName, snippet}]}
+    return JSONResponse(content=result)
