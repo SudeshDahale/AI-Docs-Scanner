@@ -166,6 +166,9 @@ function Chat({ docIds, fileNames, onReset }) {
       const formData = new FormData()
       formData.append('doc_ids', docIds)
       formData.append('question', input)
+      formData.append('history', JSON.stringify(
+        messages.map(m => ({ role: m.role, content: m.content }))
+      ))
 
       const response = await fetch('http://localhost:8000/ask', {
         method: 'POST',

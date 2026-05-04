@@ -122,9 +122,12 @@ async def rename_document(doc_id: str, fileName: str = Form(...)):
 # ASK QUESTION — returns JSON with answer + citations
 # -------------------------
 @router.post("/ask")
-async def ask_question(doc_ids: str = Form(...), question: str = Form(...)):
+async def ask_question(doc_ids: str = Form(...), question: str = Form(...), history: str = Form(default="[]")):
     id_list = [d.strip() for d in doc_ids.split(",") if d.strip()]
+    try:
+        history_list = json.loads(history)
+    except Exception:
+        history_list = []
     relevant_chunks = search_multiple(id_list, question)
-    result = answer_question(question, relevant_chunks)
-    # result = {"answer": str, "citations": [{page, fileName, snippet}]}
+    result = answer_question(question, relevant_chunks, history=history_list)
     return JSONResponse(content=result)

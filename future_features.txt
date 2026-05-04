@@ -1,9 +1,9 @@
-Multi-document support (query across multiple PDFs)
-Document management (list, delete, rename documents)
+Multi-document support (query across multiple PDFs) *
+Document management (list, delete, rename documents)*
 Advanced chunking (semantic chunking, overlapping windows)
-Citation/source tracking (show which pages answers come from)
-Export chat history
+Citation/source tracking (show which pages answers come from)*
+Export chat history*
 User authentication
 Better UI/UX enhancements
-Support for more file types (Word, PPT, etc.)
-Conversation memory (follow-up questions)
+Support for more file types (Word, PPT, etc.)*
+Conversation memory (follow-up questions) 

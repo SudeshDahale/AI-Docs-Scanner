@@ -111,7 +111,7 @@ def search_multiple(doc_ids, query, k=3):
 # 7. ANSWER WITH CITATIONS
 # Returns {answer: str, citations: [{page, fileName, snippet}]}
 # -----------------------------
-def answer_question(query, context_chunks):
+def answer_question(query, context_chunks, history=None):
     # Build numbered context so the LLM can cite by number
     context_parts = []
     for i, chunk in enumerate(context_chunks):
@@ -120,22 +120,33 @@ def answer_question(query, context_chunks):
         )
     context = "\n\n".join(context_parts)
 
+    # System prompt
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a document assistant. Answer using ONLY the provided document context. "
+                "When you use information from a source, cite it inline using [1], [2], etc. "
+                "matching the numbers in the context. Be concise and accurate. "
+                "You have access to the conversation history to answer follow-up questions."
+            )
+        }
+    ]
+
+    # Inject prior turns (cap at last 10 to stay within token limits)
+    if history:
+        for turn in history[-10:]:
+            messages.append({"role": turn["role"], "content": turn["content"]})
+
+    # Current question with fresh context
+    messages.append({
+        "role": "user",
+        "content": f"Document context:\n{context}\n\nQuestion: {query}"
+    })
+
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a document assistant. Answer using ONLY the provided context. "
-                    "When you use information from a source, cite it inline using [1], [2], etc. "
-                    "matching the numbers in the context. Be concise and accurate."
-                )
-            },
-            {
-                "role": "user",
-                "content": f"Context:\n{context}\n\nQuestion: {query}"
-            }
-        ]
+        messages=messages
     )
 
     answer = response.choices[0].message.content
