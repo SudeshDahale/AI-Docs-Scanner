@@ -7,7 +7,6 @@ import Background from './components/Background'
 import './App.css'
 
 function App() {
-  // Now store a list of { docId, fileName } instead of a single one
   const [docs, setDocs] = useState([])
   const [chatStarted, setChatStarted] = useState(false)
 
@@ -22,6 +21,23 @@ function App() {
   const handleReset = () => {
     setDocs([])
     setChatStarted(false)
+  }
+
+  // Delete a doc from state and call backend
+  const handleDelete = async (docId) => {
+    await fetch(`http://localhost:8000/documents/${docId}`, { method: 'DELETE' })
+    setDocs(prev => prev.filter(d => d.docId !== docId))
+  }
+
+  // Rename a doc in state and call backend
+  const handleRename = async (docId, newName) => {
+    const formData = new FormData()
+    formData.append('fileName', newName)
+    await fetch(`http://localhost:8000/documents/${docId}/rename`, {
+      method: 'PATCH',
+      body: formData,
+    })
+    setDocs(prev => prev.map(d => d.docId === docId ? { ...d, fileName: newName } : d))
   }
 
   return (
@@ -42,6 +58,8 @@ function App() {
               onUploadSuccess={handleUploadSuccess}
               uploadedDocs={docs}
               onStartChat={handleStartChat}
+              onDelete={handleDelete}
+              onRename={handleRename}
             />
           </motion.div>
         ) : (

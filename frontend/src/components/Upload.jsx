@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Upload as UploadIcon, FileText, Loader2, CheckCircle2, Trash2, MessageSquare } from 'lucide-react'
+import { Upload as UploadIcon, FileText, Loader2, MessageSquare } from 'lucide-react'
+import DocumentList from './DocumentList'
 import './Upload.css'
 
-function Upload({ onUploadSuccess, uploadedDocs, onStartChat }) {
+function Upload({ onUploadSuccess, uploadedDocs, onStartChat, onDelete, onRename }) {
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState('')
@@ -53,21 +54,12 @@ function Upload({ onUploadSuccess, uploadedDocs, onStartChat }) {
 
   return (
     <div className="upload-container">
-      {/* Uploaded files list */}
-      {uploadedDocs.length > 0 && (
-        <div style={{ marginBottom: '1rem' }}>
-          {uploadedDocs.map((doc, i) => (
-            <div key={doc.docId} style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
-              padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.05)',
-              borderRadius: '8px', marginBottom: '0.5rem', color: '#a0aec0'
-            }}>
-              <CheckCircle2 size={16} color="#68d391" />
-              <span style={{ flex: 1 }}>{doc.fileName}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Document list with delete + rename */}
+      <DocumentList
+        docs={uploadedDocs}
+        onDelete={onDelete}
+        onRename={onRename}
+      />
 
       {/* Drop zone */}
       <motion.div
