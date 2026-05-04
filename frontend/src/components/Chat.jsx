@@ -1,7 +1,45 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, FileText, RotateCcw, Sparkles, User } from 'lucide-react'
+import { Send, FileText, RotateCcw, Sparkles, User, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 import './Chat.css'
+
+function CitationCard({ citations }) {
+  const [open, setOpen] = useState(false)
+  if (!citations || citations.length === 0) return null
+
+  return (
+    <div className="citations-wrapper">
+      <button className="citations-toggle" onClick={() => setOpen(o => !o)}>
+        <BookOpen size={14} />
+        <span>{citations.length} source{citations.length > 1 ? 's' : ''}</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="citations-list"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {citations.map((c, i) => (
+              <div key={i} className="citation-card">
+                <div className="citation-header">
+                  <FileText size={13} />
+                  <span className="citation-file">{c.fileName}</span>
+                  <span className="citation-page">Page {c.page}</span>
+                </div>
+                <p className="citation-snippet">"{c.snippet}{c.snippet.length >= 200 ? '…' : ''}"</p>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 function Chat({ docIds, fileNames, onReset }) {
   const [messages, setMessages] = useState([])
@@ -14,13 +52,8 @@ function Chat({ docIds, fileNames, onReset }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  useEffect(() => { scrollToBottom() }, [messages])
+  useEffect(() => { inputRef.current?.focus() }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -43,30 +76,19 @@ function Chat({ docIds, fileNames, onReset }) {
 
       if (!response.ok) throw new Error('Failed to get answer')
 
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let assistantMessage = { role: 'assistant', content: '' }
-      
-      setMessages(prev => [...prev, assistantMessage])
+      const data = await response.json()
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        assistantMessage.content += chunk
-
-        setMessages(prev => {
-          const newMessages = [...prev]
-          newMessages[newMessages.length - 1] = { ...assistantMessage }
-          return newMessages
-        })
-      }
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.answer,
+        citations: data.citations || [],
+      }])
     } catch (error) {
       console.error('Chat error:', error)
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.'
+        content: 'Sorry, I encountered an error. Please try again.',
+        citations: [],
       }])
     } finally {
       setLoading(false)
@@ -75,7 +97,7 @@ function Chat({ docIds, fileNames, onReset }) {
 
   return (
     <div className="chat-container">
-      <motion.div 
+      <motion.div
         className="chat-header"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -83,7 +105,9 @@ function Chat({ docIds, fileNames, onReset }) {
         <div className="header-content">
           <div className="doc-info">
             <FileText size={20} />
-            <span className="doc-name">{Array.isArray(fileNames) ? fileNames.join(', ') : fileNames}</span>
+            <span className="doc-name">
+              {Array.isArray(fileNames) ? fileNames.join(', ') : fileNames}
+            </span>
           </div>
           <button className="reset-btn" onClick={onReset}>
             <RotateCcw size={18} />
@@ -95,7 +119,7 @@ function Chat({ docIds, fileNames, onReset }) {
       <div className="chat-messages">
         <AnimatePresence>
           {messages.length === 0 && (
-            <motion.div 
+            <motion.div
               className="empty-state"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -103,7 +127,7 @@ function Chat({ docIds, fileNames, onReset }) {
             >
               <Sparkles size={48} />
               <h3>Ask me anything about your document</h3>
-              <p>I'll provide answers based on the content of your PDF</p>
+              <p>Answers will include page citations from your PDF</p>
             </motion.div>
           )}
 
@@ -113,25 +137,41 @@ function Chat({ docIds, fileNames, onReset }) {
               className={`message ${message.role}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: index * 0.05 }}
             >
               <div className="message-avatar">
-                {message.role === 'user' ? (
-                  <User size={18} />
-                ) : (
-                  <Sparkles size={18} />
-                )}
+                {message.role === 'user' ? <User size={18} /> : <Sparkles size={18} />}
               </div>
-              <div className="message-content">
-                {message.content}
+              <div className="message-body">
+                <div className="message-content">{message.content}</div>
+                {message.role === 'assistant' && (
+                  <CitationCard citations={message.citations} />
+                )}
               </div>
             </motion.div>
           ))}
+
+          {loading && (
+            <motion.div
+              className="message assistant"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="message-avatar">
+                <Sparkles size={18} />
+              </div>
+              <div className="message-body">
+                <div className="message-content typing-indicator">
+                  <span /><span /><span />
+                </div>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
         <div ref={messagesEndRef} />
       </div>
 
-      <motion.form 
+      <motion.form
         className="chat-input-container"
         onSubmit={handleSubmit}
         initial={{ y: 20, opacity: 0 }}
