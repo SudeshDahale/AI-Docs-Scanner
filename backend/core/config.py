@@ -20,6 +20,13 @@ class Config:
     # Storage
     STORAGE_BASE: str = os.getenv("STORAGE_BASE", "storage")
 
+    # Sprint 2
+    RERANKER_MODEL: str = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+    BM25_WEIGHT: float = float(os.getenv("BM25_WEIGHT", "0.3"))
+    FAISS_WEIGHT: float = float(os.getenv("FAISS_WEIGHT", "0.7"))
+    MAX_CONTEXT_TOKENS: int = int(os.getenv("MAX_CONTEXT_TOKENS", "2000"))
+    RERANK_TOP_N: int = int(os.getenv("RERANK_TOP_N", "5"))
+
     @property
     def index_dir(self) -> str:
         return os.path.join(self.STORAGE_BASE, "indexes")
