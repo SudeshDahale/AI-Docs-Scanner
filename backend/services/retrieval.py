@@ -2,8 +2,9 @@ import os
 import json
 import numpy as np
 import faiss
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from openai import OpenAI
+from rank_bm25 import BM25Okapi
 
 from core.config import config
 from services.embedding import get_embedding
@@ -14,17 +15,6 @@ def build_vector_store(
     doc_id: str,
     embeddings: List[List[float]],
 ) -> faiss.IndexFlatL2:
-    """
-    Build and persist a FAISS index from pre-computed embeddings.
-
-    Args:
-        chunks: chunk dicts (used for length validation)
-        doc_id: used to name the index file
-        embeddings: vectors aligned with chunks
-
-    Returns:
-        the FAISS index
-    """
     if not chunks:
         raise ValueError("No chunks provided")
     if len(chunks) != len(embeddings):
@@ -36,14 +26,11 @@ def build_vector_store(
     index = faiss.IndexFlatL2(dim)
     index.add(np.array(embeddings, dtype="float32"))
 
-    index_path = os.path.join(config.index_dir, f"{doc_id}.index")
-    faiss.write_index(index, index_path)
-
+    faiss.write_index(index, os.path.join(config.index_dir, f"{doc_id}.index"))
     return index
 
 
 def load_vector_store(doc_id: str) -> Optional[faiss.IndexFlatL2]:
-    """Load a persisted FAISS index, or None if it doesn't exist."""
     path = os.path.join(config.index_dir, f"{doc_id}.index")
     if not os.path.exists(path):
         return None
@@ -51,7 +38,6 @@ def load_vector_store(doc_id: str) -> Optional[faiss.IndexFlatL2]:
 
 
 def load_chunks(doc_id: str) -> Optional[List[Dict]]:
-    """Load persisted chunk JSON for a document."""
     path = os.path.join(config.chunk_dir, f"{doc_id}.json")
     if not os.path.exists(path):
         return None
@@ -59,6 +45,35 @@ def load_chunks(doc_id: str) -> Optional[List[Dict]]:
         return json.load(f)
 
 
+# ── BM25 ────────────────────────────────────────────────────────
+def _tokenize(text: str) -> List[str]:
+    return text.lower().split()
+
+
+def bm25_search(query: str, chunks: List[Dict], k: int) -> List[Dict]:
+    """Keyword-based BM25 retrieval over a chunk list."""
+    corpus = [_tokenize(c["text"]) for c in chunks]
+    bm25 = BM25Okapi(corpus)
+    scores = bm25.get_scores(_tokenize(query))
+    top_indices = np.argsort(scores)[::-1][:k]
+    return [chunks[i] for i in top_indices if scores[i] > 0]
+
+
+# ── FAISS ────────────────────────────────────────────────────────
+def faiss_search(
+    index: faiss.IndexFlatL2,
+    query: str,
+    chunks: List[Dict],
+    k: int,
+    client: OpenAI = None,
+) -> List[Dict]:
+    """Dense vector FAISS retrieval."""
+    query_vec = get_embedding(query, client=client)
+    _, indices = index.search(np.array([query_vec], dtype="float32"), k)
+    return [chunks[i] for i in indices[0] if 0 <= i < len(chunks)]
+
+
+# ── HYBRID ───────────────────────────────────────────────────────
 def search(
     index: faiss.IndexFlatL2,
     query: str,
@@ -67,22 +82,31 @@ def search(
     client: OpenAI = None,
 ) -> List[Dict]:
     """
-    Find the top-k most relevant chunks for a query.
-
-    Args:
-        index: FAISS index for one document
-        query: user question
-        chunks: aligned list of chunk dicts
-        k: number of results (defaults to config)
-        client: optional OpenAI client for DI
-
-    Returns:
-        list of matching chunk dicts
+    Hybrid retrieval: merge FAISS (dense) + BM25 (sparse) results.
+    Deduplicates by chunk text, preserving weighted order.
     """
     k = k or config.RETRIEVAL_TOP_K
-    query_vec = get_embedding(query, client=client)
-    _, indices = index.search(np.array([query_vec], dtype="float32"), k)
-    return [chunks[i] for i in indices[0] if 0 <= i < len(chunks)]
+    fetch_k = k * 2  # fetch more, deduplicate down to k
+
+    faiss_results = faiss_search(index, query, chunks, fetch_k, client)
+    bm25_results = bm25_search(query, chunks, fetch_k)
+
+    # Score each chunk: FAISS rank score + BM25 rank score
+    scores: Dict[str, float] = {}
+    id_to_chunk: Dict[str, Dict] = {}
+
+    for rank, chunk in enumerate(faiss_results):
+        key = chunk["text"]
+        scores[key] = scores.get(key, 0) + config.FAISS_WEIGHT * (1 / (rank + 1))
+        id_to_chunk[key] = chunk
+
+    for rank, chunk in enumerate(bm25_results):
+        key = chunk["text"]
+        scores[key] = scores.get(key, 0) + config.BM25_WEIGHT * (1 / (rank + 1))
+        id_to_chunk[key] = chunk
+
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return [id_to_chunk[key] for key, _ in ranked[:k]]
 
 
 def search_multiple(
@@ -91,18 +115,7 @@ def search_multiple(
     k: int = None,
     client: OpenAI = None,
 ) -> List[Dict]:
-    """
-    Search across multiple documents and merge results.
-
-    Args:
-        doc_ids: list of document UUIDs
-        query: user question
-        k: results per document
-        client: optional OpenAI client for DI
-
-    Returns:
-        merged list of chunk dicts
-    """
+    """Hybrid search across multiple documents, merged."""
     k = k or config.RETRIEVAL_TOP_K
     all_chunks: List[Dict] = []
     for doc_id in doc_ids:
