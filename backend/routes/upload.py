@@ -1,13 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from services.pdf import extract_text
-from services.rag import (
-    chunk_text,
-    create_vector_store,
-    search_multiple,
-    answer_question,
-    load_chunks
-)
+from services.chunking import chunk_text
+from services.retrieval import search_multiple, load_chunks
+from services.generation import answer_question
+from services.rag import create_vector_store  # batch-embedding wrapper
 import uuid
 import json
 import os
