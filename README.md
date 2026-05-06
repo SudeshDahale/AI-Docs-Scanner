@@ -2,6 +2,8 @@
 
 ![Cover Image](./assets/cover.png)
 
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -10,28 +12,52 @@
 - Python 3.8+
 - OpenAI API Key
 
-### Installation & Setup
+---
 
-1. **Backend Setup**
+## ⚙️ Installation & Setup
+
+### 1. Backend Setup
 
 ```bash
 cd backend
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# Mac/Linux
+source venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-Create `.env` file in the backend directory and add your OpenAI API key:
+Create `.env` file inside `backend/`:
 
-```
+```env
 OPENAI_API_KEY=your_api_key_here
+
+# Models
+EMBEDDING_MODEL=text-embedding-3-small
+CHAT_MODEL=gpt-4.1-mini
+
+# RAG settings
+CHUNK_SIZE=500
+RETRIEVAL_TOP_K=3
+MAX_HISTORY_TURNS=10
+
+# Storage
+STORAGE_BASE=storage
 ```
 
-Start the server:
+Start backend server:
 
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-2. **Frontend Setup**
+---
+
+### 2. Frontend Setup
 
 ```bash
 cd frontend
@@ -41,22 +67,45 @@ npm run dev
 
 ---
 
+## 🧪 Running Tests
+
+```bash
+cd backend
+pytest tests/ -v
+```
+
+---
+
 ## 📁 Project Structure
 
 ```
 DocuMind-AI/
-├── backend/                 # FastAPI Backend
-│   ├── main.py             # Main application
-│   ├── routes/             # API routes
-│   ├── services/           # Business logic
-│   ├── storage/            # Vector database storage
-│   └── requirements.txt    # Python dependencies
-│
-└── frontend/               # React Frontend
+├── backend/
+│   ├── main.py                  # FastAPI app entry point
+│   ├── core/
+│   │   └── config.py            # Centralized config via .env
+│   ├── routes/
+│   │   └── upload.py            # API endpoints
+│   ├── services/
+│   │   ├── chunking.py          # Page-aware text chunking
+│   │   ├── embedding.py         # Batch embeddings with retry logic
+│   │   ├── retrieval.py         # FAISS vector store + search
+│   │   ├── generation.py        # LLM answer + citations
+│   │   ├── rag.py               # Compatibility shim
+│   │   ├── pdf.py               # Multi-format text extraction
+│   │   └── llm.py               # OpenAI client helpers
+│   ├── tests/
+│   │   ├── test_chunking.py
+│   │   ├── test_embedding.py
+│   │   └── test_retrieval.py
+│   ├── storage/                 # FAISS indexes + chunk JSON
+│   └── requirements.txt
+
+└── frontend/
     ├── src/
-    │   ├── components/     # React components
-    │   ├── App.jsx         # Main app component
-    │   └── index.css       # Global styles
+    │   ├── components/          # React components
+    │   ├── App.jsx
+    │   └── index.css
     ├── package.json
     └── vite.config.js
 ```
@@ -65,56 +114,58 @@ DocuMind-AI/
 
 ## 🏗️ System Architecture (RAG Pipeline)
 
-> This system follows a Retrieval-Augmented Generation (RAG) architecture to ensure responses are grounded in document context and reduce hallucinations.
+This system follows a Retrieval-Augmented Generation (RAG) architecture to ensure responses are grounded in document context and reduce hallucinations.
 
-![Mermaid Diagram](./assets/mermaid-diagram.png)
+![Architecture Diagram](./assets/rag-pipeline.svg)
 
-**Pipeline:**
+### Pipeline
 
 1. User uploads a document
-2. Backend extracts text and splits it into page-aware chunks
-3. Each chunk is embedded using OpenAI `text-embedding-3-small`
-4. Embeddings are stored in a per-document FAISS index
-5. On each question, the query is embedded and top-k relevant chunks are retrieved
-6. Retrieved chunks are passed as context to GPT-4.1-mini with inline citation instructions
-7. Answer and source citations are returned to the frontend
+2. Backend extracts text and splits it into page-aware chunks (`chunking.py`)
+3. Chunks are embedded in batches using OpenAI `text-embedding-3-small`
+4. Embeddings are stored in a FAISS index per document (`retrieval.py`)
+5. User question is embedded and top-k chunks are retrieved
+6. Retrieved chunks are passed to GPT-4.1-mini (`generation.py`)
+7. Final answer is returned with citations
 
 ---
 
 ## ✨ Features
 
-- 📄 **Multi-format Upload** — PDF, Word, PowerPoint, and plain text with drag-and-drop
-- 🤖 **AI-powered Q&A** — Answers grounded in your document using RAG
-- 📚 **Multi-document Support** — Query across multiple uploaded documents simultaneously
-- 🔖 **Source Citations** — Every answer shows the source file, page number, and snippet
-- 💬 **Export Chat History** — Download conversations as Markdown, JSON, or plain text
-- 🧠 **Conversation Memory** — Follow-up questions are aware of previous answers in the session
-- 🗂️ **Document Management** — List, rename, and delete uploaded documents
-- 🎨 **Modern UI** — Dark gradient design with smooth Framer Motion animations
-- 📱 **Fully Responsive** — Works on desktop and mobile
-- ⚡ **Fast Vector Search** — FAISS flat L2 index for low-latency retrieval
+- 📄 Multi-format Upload (PDF, DOCX, PPTX, TXT)
+- 🤖 RAG-based AI Q&A system
+- 📚 Multi-document support
+- 🔖 Source citations (page + snippet)
+- 💬 Chat history export (Markdown / JSON / TXT)
+- 🧠 Conversation memory (session-based)
+- 🗂️ Document management (list, delete, rename)
+- 🎨 Modern UI with animations
+- 📱 Fully responsive design
+- ⚡ Batch embeddings with retry logic
+- 🧪 Unit-tested core modules
+- ⚙️ Config-driven architecture
 
 ---
 
 ## 🛠️ Tech Stack
 
-**Frontend:** React 18, Vite, Framer Motion, Lucide Icons
-
-**Backend:** FastAPI, OpenAI GPT-4.1-mini, FAISS, pypdf, python-docx, python-pptx
+**Frontend:** React 18, Vite, Framer Motion, Lucide Icons  
+**Backend:** FastAPI, OpenAI GPT-4.1-mini, FAISS, pypdf, python-docx, python-pptx  
+**Testing:** pytest  
 
 ---
 
 ## 📂 Supported File Types
 
 | Format | Extensions |
-|---|---|
+|--------|------------|
 | PDF | `.pdf` |
-| Word Document | `.docx`, `.doc` |
+| Word | `.docx`, `.doc` |
 | PowerPoint | `.pptx`, `.ppt` |
-| Plain Text / Markdown | `.txt`, `.md` |
+| Text | `.txt`, `.md` |
 
 ---
 
 ## 📝 License
 
-MIT License — feel free to use this project!
+MIT License — free to use and modify.
