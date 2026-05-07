@@ -42,7 +42,20 @@ def load_chunks(doc_id: str) -> Optional[List[Dict]]:
     if not os.path.exists(path):
         return None
     with open(path, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+    # Normalise: some saved chunks are plain strings, ensure all are dicts
+    normalised = []
+    for i, item in enumerate(data):
+        if isinstance(item, str):
+            normalised.append({
+                "text": item,
+                "doc_id": doc_id,
+                "page": i,
+                "fileName": doc_id,
+            })
+        else:
+            normalised.append(item)
+    return normalised
 
 
 # ── BM25 ────────────────────────────────────────────────────────
