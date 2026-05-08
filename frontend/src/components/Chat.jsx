@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, FileText, RotateCcw, Sparkles, User, BookOpen, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import './Chat.css'
+import { apiFetch } from '../utils/auth'
 
 function ExportMenu({ onExport, anchorRef }) {
   const [pos, setPos] = useState({ top: 0, left: 0 })
@@ -170,7 +171,7 @@ function Chat({ docIds, fileNames, onReset }) {
         messages.map(m => ({ role: m.role, content: m.content }))
       ))
 
-      const response = await fetch('http://localhost:8000/ask', {
+      const response = await apiFetch('http://localhost:8000/ask', {
         method: 'POST',
         body: formData
       })

@@ -1,3 +1,6 @@
+understand the code and lets build on top of it. i already have the project open in the vscode so you provide me with exact code to paste and where. 
+this is todays task
+
 Multi-document support (query across multiple PDFs) *
 Document management (list, delete, rename documents)*
 Advanced chunking (semantic chunking, overlapping windows)
@@ -106,6 +109,7 @@ Qdrant / Pinecone → vectors
 🔐 4. Authentication
 JWT login
 per-user docs
+
 🔹 Sprint 5 Tasks
 📊 5. Observability
 structured logging

@@ -1,130 +1,145 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+import json
+import time
+import uuid
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from services.pdf import extract_text
-from services.chunking import chunk_text
-from services.retrieval import search_multiple
+from sqlalchemy.orm import Session
+
+from auth.dependencies import get_current_user
+from db.database import get_db
+from db.models import Document, User
+from services.cache import get_cached_response, set_cached_response
+from services.retrieval import search_multiple_qdrant
 from services.reranking import rerank
 from services.generation import answer_question
-from services.rag import create_vector_store
-import uuid
-import json
-import os
-import time
+from services.vector_store import delete_document_vectors
+from tasks.indexing import index_document
 
 router = APIRouter()
 
-CHUNK_DIR = "storage/chunks"
-INDEX_DIR = "storage/indexes"
-META_FILE = "storage/metadata.json"
-
-
-# -------------------------
-# HELPERS
-# -------------------------
-def load_metadata():
-    if not os.path.exists(META_FILE):
-        return {}
-    with open(META_FILE, "r") as f:
-        return json.load(f)
-
-
-def save_metadata(meta):
-    with open(META_FILE, "w") as f:
-        json.dump(meta, f)
-
-
-# -------------------------
-# UPLOAD
-# -------------------------
 ALLOWED_EXTENSIONS = {"pdf", "docx", "doc", "pptx", "ppt", "txt", "md"}
 
+
+# ─── UPLOAD ──────────────────────────────────────────────────────────────────
+
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
+            detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
-    pages = extract_text(file.file, file.filename)
     doc_id = str(uuid.uuid4())
-    file_name = file.filename
+    file_bytes = await file.read()
 
-    chunks = chunk_text(pages, doc_id, file_name)
-    create_vector_store(chunks, doc_id)
+    # Save to Postgres as "processing"
+    doc = Document(
+        id=doc_id,
+        file_name=file.filename,
+        user_id=current_user.id,
+        status="processing",
+    )
+    db.add(doc)
+    db.commit()
 
-    with open(f"{CHUNK_DIR}/{doc_id}.json", "w") as f:
-        json.dump(chunks, f)
+    # Dispatch Celery task
+    index_document.delay(file_bytes, file.filename, doc_id, current_user.id)
 
-    meta = load_metadata()
-    meta[doc_id] = {"fileName": file_name, "uploadedAt": time.time()}
-    save_metadata(meta)
-
-    return {"message": "Uploaded successfully", "doc_id": doc_id}
+    return {"message": "Upload queued", "doc_id": doc_id, "status": "processing"}
 
 
-# -------------------------
-# LIST DOCUMENTS
-# -------------------------
+# ─── UPLOAD STATUS ───────────────────────────────────────────────────────────
+
+@router.get("/documents/{doc_id}/status")
+def document_status(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"doc_id": doc_id, "status": doc.status, "chunk_count": doc.chunk_count}
+
+
+# ─── LIST DOCUMENTS ───────────────────────────────────────────────────────────
+
 @router.get("/documents")
-async def list_documents():
-    meta = load_metadata()
-    documents = []
-    for doc_id, info in meta.items():
-        if os.path.exists(f"{CHUNK_DIR}/{doc_id}.json"):
-            documents.append({
-                "doc_id": doc_id,
-                "fileName": info.get("fileName", "Unknown"),
-                "uploadedAt": info.get("uploadedAt", 0)
-            })
-    return {"documents": documents}
+def list_documents(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    docs = db.query(Document).filter(Document.user_id == current_user.id).all()
+    return {
+        "documents": [
+            {
+                "doc_id": d.id,
+                "fileName": d.file_name,
+                "uploadedAt": d.uploaded_at,
+                "status": d.status,
+            }
+            for d in docs
+        ]
+    }
 
 
-# -------------------------
-# DELETE DOCUMENT
-# -------------------------
+# ─── DELETE DOCUMENT ─────────────────────────────────────────────────────────
+
 @router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str):
-    chunk_path = f"{CHUNK_DIR}/{doc_id}.json"
-    index_path = f"{INDEX_DIR}/{doc_id}.index"
-
-    if not os.path.exists(chunk_path):
+def delete_document(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    if os.path.exists(chunk_path):
-        os.remove(chunk_path)
-    if os.path.exists(index_path):
-        os.remove(index_path)
-
-    meta = load_metadata()
-    meta.pop(doc_id, None)
-    save_metadata(meta)
-
+    delete_document_vectors(doc_id, current_user.id)
+    db.delete(doc)
+    db.commit()
     return {"message": "Document deleted successfully"}
 
 
-# -------------------------
-# RENAME DOCUMENT
-# -------------------------
+# ─── RENAME DOCUMENT ─────────────────────────────────────────────────────────
+
 @router.patch("/documents/{doc_id}/rename")
-async def rename_document(doc_id: str, fileName: str = Form(...)):
-    meta = load_metadata()
-    if doc_id not in meta:
+def rename_document(
+    doc_id: str,
+    fileName: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    meta[doc_id]["fileName"] = fileName
-    save_metadata(meta)
+    doc.file_name = fileName
+    db.commit()
     return {"message": "Renamed successfully", "fileName": fileName}
 
 
-# -------------------------
-# ASK QUESTION
-# -------------------------
+# ─── ASK QUESTION ────────────────────────────────────────────────────────────
+
 @router.post("/ask")
 async def ask_question(
     doc_ids: str = Form(...),
     question: str = Form(...),
-    history: str = Form(default="[]")
+    history: str = Form(default="[]"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     id_list = [d.strip() for d in doc_ids.split(",") if d.strip()]
     try:
@@ -132,7 +147,18 @@ async def ask_question(
     except Exception:
         history_list = []
 
-    relevant_chunks = search_multiple(id_list, question)
+    # Check response cache first
+    cached = get_cached_response(current_user.id, id_list, question)
+    if cached:
+        cached["cached"] = True
+        return JSONResponse(content=cached)
+
+    # Retrieval from Qdrant
+    relevant_chunks = search_multiple_qdrant(id_list, question, current_user.id)
     reranked_chunks = rerank(question, relevant_chunks)
     result = answer_question(question, reranked_chunks, history=history_list)
+
+    # Cache the response
+    set_cached_response(current_user.id, id_list, question, result)
+    result["cached"] = False
     return JSONResponse(content=result)

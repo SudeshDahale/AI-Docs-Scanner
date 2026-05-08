@@ -139,3 +139,29 @@ def search_multiple(
         results = search(index, query, chunks, k=k, client=client)
         all_chunks.extend(results)
     return all_chunks
+
+# ─── Qdrant-backed search (Sprint 4) ────────────────────────────────────────
+
+def search_multiple_qdrant(
+    doc_ids: List[str],
+    query: str,
+    user_id: int,
+    k: int = None,
+    client=None,
+) -> List[Dict]:
+    """Hybrid search using Qdrant for dense retrieval + BM25 reranking."""
+    from services.embedding import get_embedding
+    from services.vector_store import search_vectors
+
+    k = k or config.RETRIEVAL_TOP_K
+
+    # Dense: Qdrant
+    query_vec = get_embedding(query, client=client)
+    dense_chunks = search_vectors(query_vec, doc_ids, user_id, top_k=k * 2)
+
+    if not dense_chunks:
+        return []
+
+    # BM25 re-score on top of dense results
+    bm25_results = bm25_search(query, dense_chunks, k)
+    return bm25_results if bm25_results else dense_chunks[:k]
