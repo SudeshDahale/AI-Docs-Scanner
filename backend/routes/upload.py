@@ -54,11 +54,25 @@ async def upload_pdf(file: UploadFile = File(...)):
     doc_id = str(uuid.uuid4())
     file_name = file.filename
 
-    pages = extract_text(file.file, file.filename)
-    chunks = chunk_text(pages, doc_id, file_name)
-    create_vector_store(chunks, doc_id)
-    latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+    try:
+        pages = extract_text(file.file, file.filename)
+        if not pages:
+            raise ValueError("No text could be extracted from the file.")
 
+        chunks = chunk_text(pages, doc_id, file_name)
+        if not chunks:
+            raise ValueError("Document produced no chunks after splitting.")
+
+        create_vector_store(chunks, doc_id)
+
+    except ValueError as e:
+        log.warning("upload_rejected", extra={"doc_id": doc_id, "reason": str(e)})
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        log.error("upload_failed", extra={"doc_id": doc_id, "error": str(e)})
+        raise HTTPException(status_code=500, detail="Failed to process document. Please try again.")
+
+    latency_ms = round((time.perf_counter() - t0) * 1000, 1)
     log.info("document_uploaded", extra={
         "doc_id": doc_id,
         "file_name": file_name,
@@ -145,11 +159,15 @@ async def ask_question(
         history_list = []
 
     t0 = time.perf_counter()
-    relevant_chunks = search_multiple(id_list, question)
-    reranked_chunks = rerank(question, relevant_chunks)
-    result = answer_question(question, reranked_chunks, history=history_list)
-    total_ms = round((time.perf_counter() - t0) * 1000, 1)
+    try:
+        relevant_chunks = search_multiple(id_list, question)
+        reranked_chunks = rerank(question, relevant_chunks)
+        result = answer_question(question, reranked_chunks, history=history_list)
+    except Exception as e:
+        log.error("ask_failed", extra={"error": str(e), "doc_ids": id_list})
+        raise HTTPException(status_code=500, detail="Failed to answer question. Please try again.")
 
+    total_ms = round((time.perf_counter() - t0) * 1000, 1)
     log.info("ask_request", extra={
         "doc_ids": id_list,
         "query_type": result.get("query_type"),
