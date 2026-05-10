@@ -6,7 +6,7 @@ from core.metrics import record
 from core.config import config
 from services.query_classifier import classify_query
 from services.context import compress_context, build_context_string
-
+from core.errors import with_retry
 
 def _get_client() -> OpenAI:
     return OpenAI(api_key=config.OPENAI_API_KEY)
@@ -83,12 +83,29 @@ def answer_question(
         "content": f"Document context:\n{context}\n\nQuestion: {query}",
     })
 
+    from core.errors import with_retry
+
+    @with_retry(max_attempts=3, delay=1.0, backoff=2.0, exceptions=(Exception,), reraise=False, fallback=None)
+    def _call_llm():
+        return client.chat.completions.create(
+            model=config.CHAT_MODEL,
+            messages=messages,
+        )
+
     t0 = time.perf_counter()
-    response = client.chat.completions.create(
-        model=config.CHAT_MODEL,
-        messages=messages,
-    )
+    response = _call_llm()
     latency_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    # Fallback if LLM completely unavailable
+    if response is None:
+        log.error("llm_call_failed_returning_fallback_answer")
+        return {
+            "answer": "I'm sorry, I was unable to generate an answer right now. Please try again in a moment.",
+            "citations": [],
+            "query_type": query_type,
+            "context_tokens": token_count,
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "latency_ms": latency_ms},
+        }
 
     answer = response.choices[0].message.content
     usage = response.usage  # prompt_tokens, completion_tokens, total_tokens
