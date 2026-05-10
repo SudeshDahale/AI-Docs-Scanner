@@ -1,10 +1,14 @@
 from fastapi import FastAPI
-from routes.upload import router
-
-app = FastAPI()
-
-app.include_router(router)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from routes.upload import router
+from core.logger import get_logger
+from core.metrics import snapshot
+
+log = get_logger("app")
+
+app = FastAPI(title="DocuMind API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -13,3 +17,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(router)
+
+
+@app.get("/metrics")
+def get_metrics():
+    """Live latency + token usage summary."""
+    return JSONResponse(content=snapshot())
+
+
+@app.on_event("startup")
+async def startup():
+    log.info("DocuMind API is up", extra={"event": "server_started"})
