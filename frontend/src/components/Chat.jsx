@@ -1,18 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, FileText, RotateCcw, Sparkles, User, BookOpen, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { Send, FileText, RotateCcw, Sparkles, User, BookOpen, ChevronDown, ChevronUp, Download, Zap, Hash, Clock } from 'lucide-react'
 import './Chat.css'
 
 function ExportMenu({ onExport, anchorRef }) {
   const [pos, setPos] = useState({ top: 0, left: 0 })
-
   useEffect(() => {
     if (anchorRef.current) {
       const rect = anchorRef.current.getBoundingClientRect()
       setPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right })
     }
   }, [anchorRef])
-
   return (
     <div className="export-menu" style={{ top: pos.top, right: pos.right }}>
       <button onClick={() => onExport('md')}>Markdown (.md)</button>
@@ -22,10 +20,37 @@ function ExportMenu({ onExport, anchorRef }) {
   )
 }
 
+function UsageBar({ usage, queryType }) {
+  if (!usage) return null
+  return (
+    <div className="usage-bar">
+      {queryType && (
+        <span className="usage-pill type">
+          <Zap size={10} />
+          {queryType}
+        </span>
+      )}
+      {usage.latency_ms && (
+        <span className="usage-pill latency">
+          <Clock size={10} />
+          {usage.latency_ms < 1000
+            ? `${usage.latency_ms}ms`
+            : `${(usage.latency_ms / 1000).toFixed(1)}s`}
+        </span>
+      )}
+      {usage.total_tokens && (
+        <span className="usage-pill tokens">
+          <Hash size={10} />
+          {usage.total_tokens.toLocaleString()} tokens
+        </span>
+      )}
+    </div>
+  )
+}
+
 function CitationCard({ citations }) {
   const [open, setOpen] = useState(false)
   if (!citations || citations.length === 0) return null
-
   return (
     <div className="citations-wrapper">
       <button className="citations-toggle" onClick={() => setOpen(o => !o)}>
@@ -33,7 +58,6 @@ function CitationCard({ citations }) {
         <span>{citations.length} source{citations.length > 1 ? 's' : ''}</span>
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
-
       <AnimatePresence>
         {open && (
           <motion.div
@@ -82,13 +106,11 @@ function Chat({ docIds, fileNames, onReset }) {
   const exportChat = (format) => {
     setShowExportMenu(false)
     if (messages.length === 0) return
-
     const docTitle = Array.isArray(fileNames) ? fileNames.join(', ') : fileNames
     const timestamp = new Date().toLocaleString()
     let content = ''
     let mimeType = ''
     let ext = ''
-
     if (format === 'md') {
       content = `# Chat Export — ${docTitle}\n_Exported on ${timestamp}_\n\n---\n\n`
       messages.forEach((m) => {
@@ -113,6 +135,7 @@ function Chat({ docIds, fileNames, onReset }) {
           role: m.role,
           content: m.content,
           citations: m.citations || [],
+          usage: m.usage || null,
         })),
       }
       content = JSON.stringify(payload, null, 2)
@@ -127,7 +150,7 @@ function Chat({ docIds, fileNames, onReset }) {
         if (m.citations && m.citations.length > 0) {
           content += `Sources:\n`
           m.citations.forEach((c) => {
-            content += `  • ${c.fileName} — Page ${c.page}: "${c.snippet}"\n`
+            content += `  — ${c.fileName} — Page ${c.page}: "${c.snippet}"\n`
           })
           content += '\n'
         }
@@ -136,7 +159,6 @@ function Chat({ docIds, fileNames, onReset }) {
       mimeType = 'text/plain'
       ext = 'txt'
     }
-
     const blob = new Blob([content], { type: mimeType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -156,12 +178,10 @@ function Chat({ docIds, fileNames, onReset }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!input.trim() || loading) return
-
     const userMessage = { role: 'user', content: input }
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setLoading(true)
-
     try {
       const formData = new FormData()
       formData.append('doc_ids', docIds)
@@ -169,20 +189,18 @@ function Chat({ docIds, fileNames, onReset }) {
       formData.append('history', JSON.stringify(
         messages.map(m => ({ role: m.role, content: m.content }))
       ))
-
       const response = await fetch('http://localhost:8000/ask', {
         method: 'POST',
         body: formData
       })
-
       if (!response.ok) throw new Error('Failed to get answer')
-
       const data = await response.json()
-
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: data.answer,
         citations: data.citations || [],
+        usage: data.usage || null,
+        queryType: data.query_type || null,
       }])
     } catch (error) {
       console.error('Chat error:', error)
@@ -190,6 +208,8 @@ function Chat({ docIds, fileNames, onReset }) {
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.',
         citations: [],
+        usage: null,
+        queryType: null,
       }])
     } finally {
       setLoading(false)
@@ -244,7 +264,6 @@ function Chat({ docIds, fileNames, onReset }) {
               <p>Answers will include page citations from your PDF</p>
             </motion.div>
           )}
-
           {messages.map((message, index) => (
             <motion.div
               key={index}
@@ -259,12 +278,14 @@ function Chat({ docIds, fileNames, onReset }) {
               <div className="message-body">
                 <div className="message-content">{message.content}</div>
                 {message.role === 'assistant' && (
-                  <CitationCard citations={message.citations} />
+                  <>
+                    <UsageBar usage={message.usage} queryType={message.queryType} />
+                    <CitationCard citations={message.citations} />
+                  </>
                 )}
               </div>
             </motion.div>
           ))}
-
           {loading && (
             <motion.div
               className="message assistant"

@@ -433,3 +433,41 @@
   position: relative;
   z-index: 100;
 }
+/* ---- Usage bar ---- */
+.usage-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.usage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'Syne', sans-serif;
+  letter-spacing: 0.3px;
+}
+
+.usage-pill.type {
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+  text-transform: capitalize;
+}
+
+.usage-pill.latency {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: #fbbf24;
+}
+
+.usage-pill.tokens {
+  background: rgba(0, 255, 163, 0.07);
+  border: 1px solid rgba(0, 255, 163, 0.2);
+  color: var(--accent-primary);
+}
