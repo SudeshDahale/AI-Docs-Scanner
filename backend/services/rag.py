@@ -1,11 +1,3 @@
-"""
-Backward-compatibility shim.
-All logic now lives in:
-  services/chunking.py
-  services/embedding.py
-  services/retrieval.py
-  services/generation.py
-"""
 from services.chunking import chunk_text
 from services.embedding import get_embeddings_batch
 from services.retrieval import (
@@ -25,10 +17,6 @@ os.makedirs(config.chunk_dir, exist_ok=True)
 
 
 def create_vector_store(chunks, doc_id):
-    """
-    Public API used by routes/upload.py.
-    Embeds chunks in batch then builds the FAISS index.
-    """
     texts = [c["text"] for c in chunks]
     embeddings = get_embeddings_batch(texts)
     return build_vector_store(chunks, doc_id, embeddings), chunks
