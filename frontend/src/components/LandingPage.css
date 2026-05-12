@@ -34,6 +34,11 @@
   line-height: 1;
   margin-bottom: 20px;
   letter-spacing: -0.03em;
+  text-align: center;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .gradient-text {
@@ -43,6 +48,8 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: gradient-shift 4s ease infinite;
+  display: inline-block;
+  text-align: center;
 }
 
 .landing-sub {
@@ -113,3 +120,4 @@
   cursor: pointer;
   white-space: nowrap;
 }
+
