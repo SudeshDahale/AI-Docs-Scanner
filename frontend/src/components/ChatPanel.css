@@ -206,3 +206,23 @@
 }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .send-btn:not(:disabled):hover { transform: scale(1.05); }
+
+/* Append to the bottom of ChatPanel.css */
+
+.feature-panel-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-messages-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}

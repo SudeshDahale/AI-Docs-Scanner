@@ -1,3 +1,6 @@
+// frontend/src/components/ChatPanel.jsx
+// Replace the entire file with this
+
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -5,6 +8,10 @@ import {
   ChevronDown, ChevronUp, Download,
   Zap, Hash, Clock, RotateCcw, FileText
 } from 'lucide-react'
+import FeatureBar    from './FeatureBar'
+import ExplainPanel  from './ExplainPanel'
+import ComparePanel  from './ComparePanel'
+import ReportPanel   from './ReportPanel'
 import './ChatPanel.css'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -69,19 +76,20 @@ function CitationCard({ citations, onHighlight }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ChatPanel({ workspace, onAnswer, onHighlight }) {
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [streaming, setStreaming] = useState(false)
+  const [mode, setMode]               = useState('chat')
+  const [messages, setMessages]       = useState([])
+  const [input, setInput]             = useState('')
+  const [streaming, setStreaming]     = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const bottomRef = useRef(null)
-  const inputRef = useRef(null)
+  const inputRef  = useRef(null)
 
   const docIds = workspace.docs.map(d => d.docId).join(',')
   const hasDoc = workspace.docs.length > 0
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, streamingText])
-  useEffect(() => { setMessages([]); setStreamingText('') }, [workspace.id])
-  useEffect(() => { inputRef.current?.focus() }, [workspace.id])
+  useEffect(() => { setMessages([]); setStreamingText(''); setMode('chat') }, [workspace.id])
+  useEffect(() => { if (mode === 'chat') inputRef.current?.focus() }, [workspace.id, mode])
 
   const exportChat = () => {
     if (!messages.length) return
@@ -115,7 +123,6 @@ export default function ChatPanel({ workspace, onAnswer, onHighlight }) {
       const data = await res.json()
       const fullText = data.answer || ''
 
-      // Simulate streaming by revealing text progressively
       let i = 0
       const tick = () => {
         i += Math.ceil(Math.random() * 6) + 4
@@ -157,100 +164,130 @@ export default function ChatPanel({ workspace, onAnswer, onHighlight }) {
           <span className="chat-doc-count">{workspace.docs.length} doc{workspace.docs.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="chat-header-right">
-          {messages.length > 0 && (
+          {mode === 'chat' && messages.length > 0 && (
             <button className="header-btn" onClick={exportChat}>
               <Download size={15} /> Export
             </button>
           )}
-          <button className="header-btn" onClick={() => setMessages([])}>
-            <RotateCcw size={15} /> Clear
-          </button>
+          {mode === 'chat' && (
+            <button className="header-btn" onClick={() => setMessages([])}>
+              <RotateCcw size={15} /> Clear
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="chat-messages">
-        {!hasDoc && (
-          <div className="chat-empty">
-            <Sparkles size={36} />
-            <p>Add documents to this workspace to start chatting.</p>
-          </div>
-        )}
-        {hasDoc && messages.length === 0 && !streaming && (
-          <div className="chat-empty">
-            <Sparkles size={36} />
-            <h3>Ask anything about your documents</h3>
-            <p>{workspace.docs.map(d => d.fileName).join(' · ')}</p>
-          </div>
-        )}
+      {/* Feature mode tabs */}
+      <FeatureBar mode={mode} onModeChange={setMode} hasDoc={hasDoc} />
 
-        <AnimatePresence>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              className={`message ${msg.role}`}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25 }}
-            >
-              <div className="msg-avatar">
-                {msg.role === 'user' ? <User size={15} /> : <Sparkles size={15} />}
-              </div>
-              <div className="msg-body">
-                <div className="msg-text">{msg.content}</div>
-                {msg.role === 'assistant' && (
-                  <>
-                    <UsageBar usage={msg.usage} queryType={msg.queryType} />
-                    <CitationCard citations={msg.citations} onHighlight={onHighlight} />
-                  </>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Streaming bubble */}
-        {streaming && (
-          <motion.div
-            className="message assistant"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="msg-avatar"><Sparkles size={15} /></div>
-            <div className="msg-body">
-              <div className="msg-text streaming">
-                {streamingText || (
-                  <span className="typing-dots">
-                    <span /><span /><span />
-                  </span>
-                )}
-                {streamingText && <span className="cursor-blink" />}
-              </div>
-            </div>
+      {/* Panel content */}
+      <AnimatePresence mode="wait">
+        {mode === 'explain' && (
+          <motion.div key="explain" className="feature-panel-wrapper"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ExplainPanel workspace={workspace} />
           </motion.div>
         )}
+        {mode === 'compare' && (
+          <motion.div key="compare" className="feature-panel-wrapper"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ComparePanel workspace={workspace} />
+          </motion.div>
+        )}
+        {mode === 'report' && (
+          <motion.div key="report" className="feature-panel-wrapper"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <ReportPanel workspace={workspace} />
+          </motion.div>
+        )}
+        {mode === 'chat' && (
+          <motion.div key="chat" className="chat-messages-wrapper"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            {/* Messages */}
+            <div className="chat-messages">
+              {!hasDoc && (
+                <div className="chat-empty">
+                  <Sparkles size={36} />
+                  <p>Add documents to this workspace to start chatting.</p>
+                </div>
+              )}
+              {hasDoc && messages.length === 0 && !streaming && (
+                <div className="chat-empty">
+                  <Sparkles size={36} />
+                  <h3>Ask anything about your documents</h3>
+                  <p>{workspace.docs.map(d => d.fileName).join(' · ')}</p>
+                </div>
+              )}
 
-        <div ref={bottomRef} />
-      </div>
+              <AnimatePresence>
+                {messages.map((msg, i) => (
+                  <motion.div
+                    key={i}
+                    className={`message ${msg.role}`}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <div className="msg-avatar">
+                      {msg.role === 'user' ? <User size={15} /> : <Sparkles size={15} />}
+                    </div>
+                    <div className="msg-body">
+                      <div className="msg-text">{msg.content}</div>
+                      {msg.role === 'assistant' && (
+                        <>
+                          <UsageBar usage={msg.usage} queryType={msg.queryType} />
+                          <CitationCard citations={msg.citations} onHighlight={onHighlight} />
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
 
-      {/* Input */}
-      <form className="chat-input-bar" onSubmit={handleSubmit}>
-        <input
-          ref={inputRef}
-          className="chat-input"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={hasDoc ? `Ask across ${workspace.docs.length} document${workspace.docs.length > 1 ? 's' : ''}…` : 'Add documents first…'}
-          disabled={streaming || !hasDoc}
-        />
-        <button
-          type="submit"
-          className="send-btn"
-          disabled={!input.trim() || streaming || !hasDoc}
-        >
-          <Send size={17} />
-        </button>
-      </form>
+              {streaming && (
+                <motion.div
+                  className="message assistant"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="msg-avatar"><Sparkles size={15} /></div>
+                  <div className="msg-body">
+                    <div className="msg-text streaming">
+                      {streamingText || (
+                        <span className="typing-dots">
+                          <span /><span /><span />
+                        </span>
+                      )}
+                      {streamingText && <span className="cursor-blink" />}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Input */}
+            <form className="chat-input-bar" onSubmit={handleSubmit}>
+              <input
+                ref={inputRef}
+                className="chat-input"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder={hasDoc ? `Ask across ${workspace.docs.length} document${workspace.docs.length > 1 ? 's' : ''}…` : 'Add documents first…'}
+                disabled={streaming || !hasDoc}
+              />
+              <button
+                type="submit"
+                className="send-btn"
+                disabled={!input.trim() || streaming || !hasDoc}
+              >
+                <Send size={17} />
+              </button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
